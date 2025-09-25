@@ -1,3 +1,9 @@
+import express from "express";   // ES module syntax
+import path from "path";
+import { fileURLToPath } from "url";
+
+const app = express();   // create express app
+
 import app from "./app.js";
 import cloudinary from "cloudinary";
 import path from "path";
