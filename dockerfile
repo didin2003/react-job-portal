@@ -33,7 +33,7 @@ COPY backend/ ./
 COPY --from=frontend-builder /app/frontend/build ./public
 
 # Expose the port your Express app listens on
-EXPOSE 5000
+EXPOSE 3000
 
 # Start the backend server
 CMD ["node", "server.js"]
