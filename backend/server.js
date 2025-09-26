@@ -1,16 +1,5 @@
 import app from "./app.js";
 import cloudinary from "cloudinary";
-import express from "express";
-import path from "path";
-import app from "./app.js";
-
-const __dirname = path.resolve();
-
-app.use(express.static(path.join(__dirname, "client", "build"))); 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "client", "build", "index.html"));
-});
-
 
 cloudinary.v2.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME, // CLOUDINARY_CLIENT_NAME
