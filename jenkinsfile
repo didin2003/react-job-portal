@@ -1,0 +1,122 @@
+pipeline {
+    agent any
+    tools {
+        jdk 'jdk17'
+         nodejs 'node24'
+    }
+    environment{
+        SCANNER_HOME=tool 'sonar-scanner'
+        DOCKER_REGISTRY = 'didin8080'
+        IMAGE_NAME = "job-portal"
+        IMAGE_FULL_NAME = "didin8080/job-portal"
+    }
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        stage('git checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/didin2003/react-job-portal.git'
+                script {
+                    def hash = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                    def timestamp = new Date().format('yyyyMMddHHmmss')
+                    env.COMMIT_HASH = hash
+                    env.IMAGE_VERSION = "${hash}-${timestamp}"
+                }
+            }
+        }
+        stage('sonarqube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar-server') {
+                    sh"""
+                       $SCANNER_HOME/bin/sonar-scanner \
+                       -Dsonar.projectKey=job \
+                       -Dsonar.sources=. \
+                       -Dsonar.host.url=http://54.176.80.202:9000 \
+                     """
+                }
+            }
+        }
+        stage('Code Quality Gate') {
+            steps {
+                waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
+            }
+        }
+        stage('Install Dependicies') {
+            steps {
+                sh """
+                    cd backend
+                    npm install
+                    cd ..
+                    cd frontend
+                    npm install
+                 """
+            }
+        }
+        stage('OWASP Dependency Check') {
+            steps {
+                dependencyCheck additionalArguments: ' --scan ./ --disableYarnAudit --disableNodeAudit --n', odcInstallation: 'DP-Check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage('Trivy File Scan') {
+            steps {
+                sh "trivy fs . > trivy.txt"
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                sh """
+                    docker system prune -a -f
+                    docker build -t ${IMAGE_FULL_NAME}:${IMAGE_VERSION} .
+                 """
+            }
+        }
+        stage('Tag and Push') {
+            steps {
+                withDockerRegistry([credentialsId: 'docker', url: 'https://index.docker.io/v1/']) {
+                    sh """
+                        docker tag ${IMAGE_FULL_NAME}:${IMAGE_VERSION} ${IMAGE_FULL_NAME}:latest
+                        docker push ${IMAGE_FULL_NAME}:${IMAGE_VERSION} || true
+                        docker push ${IMAGE_FULL_NAME}:latest
+                     """
+                }
+            }
+        }
+        stage('Deploy to container') {
+            steps {
+                sh """
+                    docker stop job-portal || true
+                    docker rm job-portal || true
+                    docker run -d --name job-portal -p 5000:4000  --restart unless-stopped ${IMAGE_FULL_NAME}:latest
+                 """
+            }
+        }
+    }
+    post {
+    always {
+        emailext attachLog: true,
+            subject: "'${currentBuild.result}'",
+            body: """
+                <html>
+                <body>
+                    <div style="background-color: #FFA07A; padding: 10px; margin-bottom: 10px;">
+                        <p style="color: white; font-weight: bold;">Project: ${env.JOB_NAME}</p>
+                    </div>
+                    <div style="background-color: #90EE90; padding: 10px; margin-bottom: 10px;">
+                        <p style="color: white; font-weight: bold;">Build Number: ${env.BUILD_NUMBER}</p>
+                    </div>
+                    <div style="background-color: #87CEEB; padding: 10px; margin-bottom: 10px;">
+                        <p style="color: white; font-weight: bold;">URL: ${env.BUILD_URL}</p>
+                    </div>
+                </body>
+                </html>
+            """,
+            to: 'didinpg8080@gmail.com',
+            mimeType: 'text/html',
+            attachmentsPattern: 'trivy.txt'
+        }
+    }
+}
