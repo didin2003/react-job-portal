@@ -35,10 +35,19 @@ app.use(
 // Serve frontend static files
 app.use(express.static(path.join(process.cwd(), "public")));
 
+
 app.use("/api/v1/user", userRouter);
 app.use("/api/v1/job", jobRouter);
 app.use("/api/v1/application", applicationRouter);
-dbConnection();
 
+// Catch-all: serve index.html for client-side routes
+app.get("*", (req, res) => {
+  if (req.originalUrl.startsWith("/api/")) {
+    return res.status(404).json({ message: "API route not found" });
+  }
+  res.sendFile(path.join(process.cwd(), "public", "index.html"));
+});
+
+dbConnection();
 app.use(errorMiddleware);
 export default app;
