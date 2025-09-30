@@ -40,6 +40,12 @@ app.use("/api/v1/user", userRouter);
 app.use("/api/v1/job", jobRouter);
 app.use("/api/v1/application", applicationRouter);
 
+
+app.get("/api/hello", (req, res) => {
+  res.json({ message: "Hello from API" });
+});
+
+
 // Catch-all: serve index.html for client-side routes
 app.get("*", (req, res) => {
   if (req.originalUrl.startsWith("/api/")) {
