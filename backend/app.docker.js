@@ -47,10 +47,18 @@ app.get("/api/hello", (req, res) => {
 
 
 // Catch-all: serve index.html for client-side routes
-app.get("*", (req, res) => {
+app.get("*", (req, res, next) => {
+  // Allow /metrics to be handled by express-prom-bundle
+  if (req.originalUrl.startsWith("/metrics")) {
+    return next();
+  }
+
+  // Custom handling for API 404s
   if (req.originalUrl.startsWith("/api/")) {
     return res.status(404).json({ message: "API route not found" });
   }
+
+  // Fallback: serve frontend index.html
   res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 
